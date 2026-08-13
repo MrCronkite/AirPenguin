@@ -9,15 +9,42 @@ import SwiftUI
 import SpriteKit
 
 struct ContentView: View {
-    var scene: SKScene {
+    @State private var isGameOver = false
+    @State private var score = 0
+    @State private var sceneId = UUID()
+
+    var body: some View {
+        ZStack {
+            SpriteView(scene: makeScene())
+                .ignoresSafeArea()
+                .id(sceneId)
+
+            ScoreView(score: score)
+
+            if isGameOver {
+                GameOverView {
+                    restartGame()
+                }
+            }
+        }
+    }
+
+    private func makeScene() -> SKScene {
         let scene = GameScene()
         scene.size = UIScreen.main.bounds.size
         scene.scaleMode = .resizeFill
+        scene.onGameOver = {
+            isGameOver = true
+        }
+        scene.onScoreChange = { newScore in
+            score = newScore
+        }
         return scene
     }
 
-    var body: some View {
-        SpriteView(scene: scene)
-            .ignoresSafeArea()
+    private func restartGame() {
+        isGameOver = false
+        score = 0
+        sceneId = UUID()
     }
 }

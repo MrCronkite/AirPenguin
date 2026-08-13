@@ -9,41 +9,155 @@ import SpriteKit
 
 final class GameScene: SKScene, SKPhysicsContactDelegate {
 
+    var onGameOver: (() -> Void)?
+    var onScoreChange: ((Int) -> Void)?
+
     private var penguin: Penguin!
-    private let level = Level.level1
+    private let levelGenerator = LevelGenerator()
+    private let cameraNode = SKCameraNode()
+
+    private var touchStartPoint: CGPoint?
+    private var currentTouchX: CGFloat?
+    private let swipeUpThreshold: CGFloat = 40
+
+    private var iceFloeNodes: [IceFloe] = []
+    private var isGameOver = false
+    private var lastUpdateTime: TimeInterval = 0
+
+    private var score = 0 {
+        didSet { onScoreChange?(score) }
+    }
 
     override func didMove(to view: SKView) {
-        backgroundColor = SKColor(red: 0.7, green: 0.85, blue: 1.0, alpha: 1.0)
-        physicsWorld.gravity = CGVector(dx: 0, dy: -9.8)
+        backgroundColor = SKColor(red: 0.2, green: 0.5, blue: 0.9, alpha: 1.0)
+        physicsWorld.gravity = .zero
         physicsWorld.contactDelegate = self
 
         setupPenguin()
-        setupGround()
+        setupIceFloes()
+        setupFish()
+        setupCamera()
     }
 
     private func setupPenguin() {
         penguin = Penguin()
-        penguin.position = level.startPosition
+        penguin.position = CGPoint(
+            x: 200,
+            y: 150
+        )
         addChild(penguin)
     }
 
-    private func setupGround() {
-        let ground = SKShapeNode(rectOf: CGSize(width: 2000, height: 40))
-        ground.fillColor = .white
-        ground.strokeColor = .clear
-        ground.position = CGPoint(x: 500, y: 80)
+    private func setupIceFloes() {
 
-        let body = SKPhysicsBody(rectangleOf: ground.frame.size)
-        body.isDynamic = false
-        body.categoryBitMask = PhysicsCategory.terrain
-        ground.physicsBody = body
+        for floeData in levelGenerator.iceFloes {
 
-        addChild(ground)
+            let floe = IceFloe(
+                size: floeData.size
+            )
+
+            floe.position = floeData.position
+
+            addChild(floe)
+
+            iceFloeNodes.append(floe)
+        }
     }
 
-    // Обработку жестов подключим следующим шагом
+    private func setupFish() {
+
+        for point in levelGenerator.fishPositions {
+
+            let fish = Fish()
+
+            fish.position = point
+
+            addChild(fish)
+        }
+    }
+
+    private func setupCamera() {
+        camera = cameraNode
+        addChild(cameraNode)
+        cameraNode.position = penguin.position
+    }
+
+    override func update(_ currentTime: TimeInterval) {
+        guard !isGameOver else { return }
+
+        let deltaTime = lastUpdateTime == 0 ? 0 : currentTime - lastUpdateTime
+        lastUpdateTime = currentTime
+
+       penguin.moveForward()
+
+        if let targetX = currentTouchX {
+            penguin.moveHorizontally(towards: targetX, deltaTime: deltaTime)
+        }
+
+        updateCamera()
+        checkWaterFall()
+    }
+
+    private func updateCamera() {
+        cameraNode.position.y = penguin.position.y
+        cameraNode.position.x = penguin.position.x
+    }
+
+    private func checkWaterFall() {
+        guard !penguin.isJumping else { return }
+
+        let isOnIce = iceFloeNodes.contains { floe in
+            floe.frame.contains(penguin.position)
+        }
+
+        if !isOnIce {
+            triggerGameOver()
+        }
+    }
+
+    private func triggerGameOver() {
+        isGameOver = true
+        onGameOver?()
+    }
+
+    // MARK: - Touches
+
+    override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
+        guard let point = touches.first?.location(in: self) else { return }
+        touchStartPoint = point
+        currentTouchX = point.x
+    }
+
+    override func touchesMoved(_ touches: Set<UITouch>, with event: UIEvent?) {
+        guard let point = touches.first?.location(in: self) else { return }
+        currentTouchX = point.x
+    }
+
+    override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent?) {
+        guard let start = touchStartPoint,
+              let end = touches.first?.location(in: self) else { return }
+
+        if end.y - start.y > swipeUpThreshold {
+            penguin.jump()
+        }
+
+        touchStartPoint = nil
+        currentTouchX = nil
+    }
+
+    // MARK: - Contacts
 
     func didBegin(_ contact: SKPhysicsContact) {
-        // Обработку столкновений добавим позже
+        let bodies = [contact.bodyA, contact.bodyB]
+
+        if let fishBody = bodies.first(where: { $0.categoryBitMask == PhysicsCategory.fish }) {
+            fishBody.node?.removeFromParent()
+            score += 1
+        }
+
+        let hitFinish = bodies.contains { $0.categoryBitMask == PhysicsCategory.finish }
+        if hitFinish {
+            print("Уровень пройден!")
+        }
     }
 }

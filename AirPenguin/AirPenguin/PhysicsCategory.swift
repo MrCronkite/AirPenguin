@@ -13,4 +13,5 @@ struct PhysicsCategory {
     static let terrain: UInt32 = 0x1 << 1
     static let obstacle: UInt32 = 0x1 << 2
     static let finish: UInt32 = 0x1 << 3
+    static let fish: UInt32 = 0x1 << 4
 }
