@@ -12,7 +12,7 @@ import SpriteKit
 final class Fish: SKSpriteNode {
 
     init() {
-        let firstTexture = SKTexture(imageNamed: "fish_01")
+        let firstTexture = SKTexture(imageNamed: "fish2_01")
         let size = CGSize(width: 32, height: 32)
         super.init(texture: firstTexture, color: .clear, size: size)
         name = "fish"
@@ -35,7 +35,7 @@ final class Fish: SKSpriteNode {
     }
 
     private func startSwimAnimation() {
-        let textures = (1...20).map { SKTexture(imageNamed: String(format: "fish_%02d", $0)) }
+        let textures = (1...25).map { SKTexture(imageNamed: String(format: "fish2_%02d", $0)) }
 
         let animate = SKAction.animate(with: textures, timePerFrame: 0.06, resize: false, restore: false)
         let loop = SKAction.repeatForever(animate)
