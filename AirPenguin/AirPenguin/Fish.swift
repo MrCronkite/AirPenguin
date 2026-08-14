@@ -7,14 +7,18 @@
 
 import SpriteKit
 
+import SpriteKit
+
 final class Fish: SKSpriteNode {
 
     init() {
-        let size = CGSize(width: 24, height: 16)
-        super.init(texture: nil, color: .orange, size: size)
+        let firstTexture = SKTexture(imageNamed: "fish_01")
+        let size = CGSize(width: 32, height: 32)
+        super.init(texture: firstTexture, color: .clear, size: size)
         name = "fish"
-        zPosition = 5 // между льдиной и пингвином
+        zPosition = 5
         setupPhysics()
+        startSwimAnimation()
     }
 
     required init?(coder aDecoder: NSCoder) {
@@ -28,5 +32,16 @@ final class Fish: SKSpriteNode {
         body.collisionBitMask = PhysicsCategory.none
         body.contactTestBitMask = PhysicsCategory.penguin
         physicsBody = body
+    }
+
+    private func startSwimAnimation() {
+        let textures = (1...20).map { SKTexture(imageNamed: String(format: "fish_%02d", $0)) }
+
+        let animate = SKAction.animate(with: textures, timePerFrame: 0.06, resize: false, restore: false)
+        let loop = SKAction.repeatForever(animate)
+
+        // Небольшая случайная задержка старта, чтобы рыбки не двигались синхронно
+        let randomDelay = Double.random(in: 0...1.0)
+        run(SKAction.sequence([SKAction.wait(forDuration: randomDelay), loop]))
     }
 }

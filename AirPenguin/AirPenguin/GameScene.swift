@@ -6,6 +6,7 @@
 //
 
 import SpriteKit
+import UIKit
 
 final class GameScene: SKScene, SKPhysicsContactDelegate {
 
@@ -16,17 +17,16 @@ final class GameScene: SKScene, SKPhysicsContactDelegate {
     private let levelGenerator = LevelGenerator()
     private let cameraNode = SKCameraNode()
 
-    private var touchStartPoint: CGPoint?
-    private var currentTouchX: CGFloat?
-    private let swipeUpThreshold: CGFloat = 40
-
     private var iceFloeNodes: [IceFloe] = []
     private var isGameOver = false
-    private var lastUpdateTime: TimeInterval = 0
 
     private var score = 0 {
         didSet { onScoreChange?(score) }
     }
+
+    private var spawnedFloeCount = 0
+    private var spawnedFishCount = 0
+    private let generationLookahead: CGFloat = 1500
 
     override func didMove(to view: SKView) {
         backgroundColor = SKColor(red: 0.2, green: 0.5, blue: 0.9, alpha: 1.0)
@@ -34,46 +34,41 @@ final class GameScene: SKScene, SKPhysicsContactDelegate {
         physicsWorld.contactDelegate = self
 
         setupPenguin()
-        setupIceFloes()
-        setupFish()
+        spawnPendingFloes()
+        spawnPendingFish()
         setupCamera()
+        setupGestures(on: view)
     }
 
     private func setupPenguin() {
         penguin = Penguin()
-        penguin.position = CGPoint(
-            x: 200,
-            y: 150
-        )
+        penguin.position = levelGenerator.iceFloes[0].position
         addChild(penguin)
     }
 
-    private func setupIceFloes() {
+    private func spawnPendingFloes() {
+        let floes = levelGenerator.iceFloes
+        guard spawnedFloeCount < floes.count else { return }
 
-        for floeData in levelGenerator.iceFloes {
-
-            let floe = IceFloe(
-                size: floeData.size
-            )
-
+        for floeData in floes[spawnedFloeCount...] {
+            let floe = IceFloe(size: floeData.size)
             floe.position = floeData.position
-
             addChild(floe)
-
             iceFloeNodes.append(floe)
         }
+        spawnedFloeCount = floes.count
     }
 
-    private func setupFish() {
+    private func spawnPendingFish() {
+        let positions = levelGenerator.fishPositions
+        guard spawnedFishCount < positions.count else { return }
 
-        for point in levelGenerator.fishPositions {
-
+        for point in positions[spawnedFishCount...] {
             let fish = Fish()
-
             fish.position = point
-
             addChild(fish)
         }
+        spawnedFishCount = positions.count
     }
 
     private func setupCamera() {
@@ -84,18 +79,18 @@ final class GameScene: SKScene, SKPhysicsContactDelegate {
 
     override func update(_ currentTime: TimeInterval) {
         guard !isGameOver else { return }
-
-        let deltaTime = lastUpdateTime == 0 ? 0 : currentTime - lastUpdateTime
-        lastUpdateTime = currentTime
-
-       penguin.moveForward()
-
-        if let targetX = currentTouchX {
-            penguin.moveHorizontally(towards: targetX, deltaTime: deltaTime)
-        }
-
+        penguin.moveForward()
         updateCamera()
         checkWaterFall()
+        checkGenerateMoreFloes()
+    }
+
+    private func checkGenerateMoreFloes() {
+        if levelGenerator.lastFloeY - penguin.position.y < generationLookahead {
+            levelGenerator.generateNextFloes(count: 10)
+            spawnPendingFloes()
+            spawnPendingFish()
+        }
     }
 
     private func updateCamera() {
@@ -120,29 +115,32 @@ final class GameScene: SKScene, SKPhysicsContactDelegate {
         onGameOver?()
     }
 
-    // MARK: - Touches
+    // MARK: - Жесты
 
-    override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
-        guard let point = touches.first?.location(in: self) else { return }
-        touchStartPoint = point
-        currentTouchX = point.x
+    private func setupGestures(on view: SKView) {
+        let doubleTap = UITapGestureRecognizer(target: self, action: #selector(handleDoubleTap))
+        doubleTap.numberOfTapsRequired = 2
+        view.addGestureRecognizer(doubleTap)
+
+        let pan = UIPanGestureRecognizer(target: self, action: #selector(handlePan))
+        view.addGestureRecognizer(pan)
     }
 
-    override func touchesMoved(_ touches: Set<UITouch>, with event: UIEvent?) {
-        guard let point = touches.first?.location(in: self) else { return }
-        currentTouchX = point.x
+    @objc private func handleDoubleTap(_ recognizer: UITapGestureRecognizer) {
+        guard !isGameOver else { return }
+        penguin.jump()
     }
 
-    override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent?) {
-        guard let start = touchStartPoint,
-              let end = touches.first?.location(in: self) else { return }
+    @objc private func handlePan(_ recognizer: UIPanGestureRecognizer) {
+        guard !isGameOver else { return }
+        guard let view = self.view else { return }
 
-        if end.y - start.y > swipeUpThreshold {
-            penguin.jump()
-        }
+        // translation — смещение с прошлого вызова (UIKit сам считает дельту)
+        let translation = recognizer.translation(in: view)
+        penguin.moveHorizontally(byDelta: translation.x)
 
-        touchStartPoint = nil
-        currentTouchX = nil
+        // Сбрасываем, чтобы в следующий раз получить чистую дельту, а не накопленную с начала жеста
+        recognizer.setTranslation(.zero, in: view)
     }
 
     // MARK: - Contacts

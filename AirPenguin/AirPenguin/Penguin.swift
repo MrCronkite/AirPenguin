@@ -69,11 +69,8 @@ final class Penguin: SKSpriteNode {
         startWalkingAnimationIfNeeded()
     }
 
-    func moveHorizontally(towards targetX: CGFloat, deltaTime: TimeInterval) {
-        let maxStep = horizontalSpeed * CGFloat(deltaTime)
-        let diff = targetX - position.x
-        let step = max(-maxStep, min(maxStep, diff))
-        position.x += step
+    func moveHorizontally(byDelta deltaX: CGFloat) {
+        position.x += deltaX
     }
 
     func jump() {
