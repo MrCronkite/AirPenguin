@@ -27,9 +27,10 @@ final class GameScene: SKScene, SKPhysicsContactDelegate {
     private var spawnedFloeCount = 0
     private var spawnedFishCount = 0
     private let generationLookahead: CGFloat = 1500
+    private var waterBackground: WaterBackground!
+    private var lastUpdateTime: TimeInterval = 0
 
     override func didMove(to view: SKView) {
-        backgroundColor = SKColor(red: 0.2, green: 0.5, blue: 0.9, alpha: 1.0)
         physicsWorld.gravity = .zero
         physicsWorld.contactDelegate = self
 
@@ -37,7 +38,14 @@ final class GameScene: SKScene, SKPhysicsContactDelegate {
         spawnPendingFloes()
         spawnPendingFish()
         setupCamera()
+        setupWaterBackground()
         setupGestures(on: view)
+    }
+
+    private func setupWaterBackground() {
+        waterBackground = WaterBackground(screenSize: size)
+        waterBackground.zPosition = -10
+        cameraNode.addChild(waterBackground) // <-- добавляем в камеру, а не в сцену — тогда всегда покрывает экран
     }
 
     private func setupPenguin() {
@@ -79,10 +87,15 @@ final class GameScene: SKScene, SKPhysicsContactDelegate {
 
     override func update(_ currentTime: TimeInterval) {
         guard !isGameOver else { return }
+
+        let deltaTime = lastUpdateTime == 0 ? 0 : currentTime - lastUpdateTime
+        lastUpdateTime = currentTime
+
         penguin.moveForward()
         updateCamera()
         checkWaterFall()
         checkGenerateMoreFloes()
+        waterBackground.update(deltaTime: deltaTime)
     }
 
     private func checkGenerateMoreFloes() {
